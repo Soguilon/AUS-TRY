@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VE — Earnings Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f; --surface: #141418; --surface2: #1c1c22; --border: #2a2a32;
+    --gold: #f5a623; --gold-dim: #c47d0e; --gold-glow: rgba(245,166,35,0.15);
+    --green: #22c55e; --red: #ef4444; --blue: #60a5fa; --purple: #a78bfa;
+    --amber: #fbbf24; --teal: #2dd4bf; --muted: #6b7280; --text: #e5e7eb; --text2: #9ca3af;
+    --sidebar-w: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  .app { display: flex; min-height: 100vh; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+    transition: width 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  .sidebar.collapsed { width: 56px; }
+
+  .sidebar-logo {
+    padding: 16px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0;
+  }
+  .sidebar-logo-text { overflow: hidden; white-space: nowrap; transition: opacity 0.15s, width 0.15s; }
+  .sidebar.collapsed .sidebar-logo-text { opacity: 0; width: 0; pointer-events: none; }
+  .sidebar-logo .suite { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--gold); }
+  .sidebar-logo .sub { font-size: 10px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+  .sidebar-toggle {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); cursor: pointer; padding: 5px 7px; font-size: 14px; line-height: 1;
+    flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
+  }
+  .sidebar-toggle:hover { color: var(--gold); border-color: rgba(245,166,35,0.4); }
+
+  .sidebar-section {
+    padding: 16px 12px 8px; font-size: 10px; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase; white-space: nowrap;
+    overflow: hidden; transition: opacity 0.15s;
+  }
+  .sidebar.collapsed .sidebar-section { opacity: 0; height: 0; padding: 0; }
+
+  .nav-item {
+    margin: 2px 8px; padding: 10px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--text2);
+    display: flex; align-items: center; gap: 10px;
+    transition: all 0.15s; border: 1px solid transparent; white-space: nowrap; overflow: hidden;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--gold-glow); color: var(--gold); border-color: rgba(245,166,35,0.25); }
+  .nav-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .nav-item-label { overflow: hidden; white-space: nowrap; transition: opacity 0.15s, max-width 0.15s; max-width: 200px; }
+  .sidebar.collapsed .nav-item-label { opacity: 0; max-width: 0; }
+  .nav-count {
+    margin-left: auto; font-size: 11px; background: var(--surface2);
+    padding: 2px 6px; border-radius: 10px; color: var(--muted);
+    transition: opacity 0.15s; flex-shrink: 0;
+  }
+  .sidebar.collapsed .nav-count { opacity: 0; width: 0; padding: 0; overflow: hidden; }
+  .nav-item.active .nav-count { background: rgba(245,166,35,0.2); color: var(--gold); }
+
+  .sidebar-bottom { margin-top: auto; padding: 16px; border-top: 1px solid var(--border); overflow: hidden; }
+  .sidebar.collapsed .sidebar-bottom { padding: 10px 8px; }
+  .refresh-btn {
+    width: 100%; padding: 9px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text2); font-size: 12px; cursor: pointer;
+    font-family: 'Inter', sans-serif; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
+  }
+  .refresh-btn:hover { color: var(--gold); border-color: rgba(245,166,35,0.3); }
+  .refresh-btn-label { transition: opacity 0.15s, max-width 0.15s; max-width: 200px; overflow: hidden; }
+  .sidebar.collapsed .refresh-btn-label { opacity: 0; max-width: 0; }
+  .last-updated { font-size: 10px; color: var(--muted); text-align: center; margin-top: 8px; transition: opacity 0.15s; white-space: nowrap; overflow: hidden; }
+  .sidebar.collapsed .last-updated { opacity: 0; height: 0; margin: 0; }
+
+  /* ── MAIN ── */
+  .main { flex: 1; overflow-y: auto; min-width: 0; }
+
+  /* ── HEADER ── */
+  .page-header {
+    padding: 32px 40px 0; display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  }
+  .page-title { font-size: 13px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .client-name { font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 2px; color: var(--text); line-height: 1; }
+  .client-name span { color: var(--gold); }
+
+  /* ── EDITOR FILTER ── */
+  .editor-filter { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .filter-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .editor-btn {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 12px;
+    font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.15s; font-weight: 500;
+  }
+  .editor-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .editor-btn.active { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
+
+  /* ── STATS ROW ── */
+  .stats-row { display: flex; gap: 16px; padding: 28px 40px 0; flex-wrap: wrap; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 24px; flex: 1; min-width: 140px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card.clickable { cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+  .stat-card.clickable:hover { transform: translateY(-2px); border-color: var(--text2); }
+  .stat-card.earnings { border-color: rgba(245,166,35,0.35); }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--border); border-radius: 12px 12px 0 0;
+  }
+  .stat-card.earnings::before   { background: linear-gradient(90deg, var(--gold), transparent); }
+  .stat-card.paid::before       { background: linear-gradient(90deg, var(--green), transparent); }
+  .stat-card.unpaid::before     { background: linear-gradient(90deg, var(--red), transparent); }
+  .stat-card.total::before      { background: linear-gradient(90deg, var(--blue), transparent); }
+  .stat-card.pending-card::before  { background: linear-gradient(90deg, var(--purple), transparent); }
+  .stat-card.checking-card::before { background: linear-gradient(90deg, var(--amber), transparent); }
+  .stat-card.exported-card::before { background: linear-gradient(90deg, var(--teal), transparent); }
+  .stat-label { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 36px; letter-spacing: 1px; line-height: 1; }
+  .stat-card.earnings .stat-value  { color: var(--gold); font-size: 44px; }
+  .stat-card.paid .stat-value      { color: var(--green); }
+  .stat-card.unpaid .stat-value    { color: var(--red); }
+  .stat-card.total .stat-value     { color: var(--blue); }
+  .stat-card.pending-card .stat-value  { color: var(--purple); }
+  .stat-card.checking-card .stat-value { color: var(--amber); }
+  .stat-card.exported-card .stat-value { color: var(--teal); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ── HERO ── */
+  .hero { padding: 48px 40px 0; text-align: center; }
+  .hero-eyebrow { font-size: 11px; letter-spacing: 4px; color: var(--muted); text-transform: uppercase; margin-bottom: 16px; }
+  .hero-earnings { font-family: 'Bebas Neue', sans-serif; font-size: clamp(80px, 15vw, 160px); letter-spacing: 4px; color: var(--gold); line-height: 1; }
+  .hero-currency { font-size: 0.4em; vertical-align: top; margin-top: 0.18em; color: var(--gold-dim); }
+  .hero-sub { font-size: 14px; color: var(--muted); margin-top: 12px; letter-spacing: 1px; }
+  .hero-breakdown { display: flex; justify-content: center; gap: 40px; margin-top: 40px; flex-wrap: wrap; }
+  .hero-stat { text-align: center; }
+  .hero-stat.clickable { cursor: pointer; }
+  .hero-stat.clickable:hover .hero-stat-val { opacity: 0.8; }
+  .hero-stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 32px; color: var(--text); }
+  .hero-stat-val.g { color: var(--green); }
+  .hero-stat-val.r { color: var(--red); }
+  .hero-stat-val.p { color: var(--purple); }
+  .hero-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px; }
+  .hero-divider { width: 1px; background: var(--border); align-self: stretch; }
+  .editor-earnings { display: flex; justify-content: center; gap: 24px; margin-top: 32px; flex-wrap: wrap; }
+  .editor-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 32px; text-align: center; min-width: 180px; }
+  .editor-card-name { font-size: 12px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+  .editor-card-fullname { font-size: 10px; color: var(--gold); margin-bottom: 8px; opacity: 0.85; }
+  .editor-card-amt { font-family: 'Bebas Neue', sans-serif; font-size: 38px; color: var(--text); }
+  .editor-card-amt .peso { font-size: 0.5em; color: var(--muted); vertical-align: top; margin-top: 0.2em; }
+
+  /* ── STATUS LEGEND ── */
+  .status-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 20px 40px 0; align-items: center; }
+  .legend-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── TABLE ── */
+  .table-section { padding: 28px 40px 40px; }
+  .table-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .table-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 1.5px; }
+  .table-count { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 12px 14px; border-bottom: 1px solid rgba(42,42,50,0.5); color: var(--text2); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); color: var(--text); }
+  .project-name { color: var(--text); font-weight: 500; font-size: 13px; }
+
+  /* ── BADGES ── */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+  .badge-paid     { background: rgba(34,197,94,0.12);  color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+  .badge-unpaid   { background: rgba(239,68,68,0.12);  color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+  .badge-exported { background: rgba(45,212,191,0.12); color: #2dd4bf; border: 1px solid rgba(45,212,191,0.2); }
+  .badge-checking { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+  .badge-pending  { background: rgba(167,139,250,0.12);color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
+
+  .editor-tag { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: help; }
+  .editor-aus  { background: rgba(217,119,6,0.15);  color: #d97706; }
+  .editor-neil { background: rgba(34,197,94,0.15);  color: #22c55e; }
+
+  .amount { font-family: 'Bebas Neue', sans-serif; font-size: 15px; color: var(--text); letter-spacing: 0.5px; }
+  .amount.earned { color: var(--green); }
+  .amount.owed   { color: var(--red); }
+
+  /* ── PER-PROJECT INLINE EDIT ── */
+  .amount-cell { position: relative; display: inline-flex; align-items: center; gap: 5px; cursor: default; }
+  .amount-cell[data-overridden="true"] .amount { text-decoration: underline dotted; text-underline-offset: 3px; }
+  .amount-cell .edit-hint {
+    font-size: 9px; color: var(--muted); opacity: 0; transition: opacity 0.15s;
+    letter-spacing: 0.5px; text-transform: uppercase; font-family: 'Inter', sans-serif;
+  }
+  td:hover .amount-cell .edit-hint { opacity: 1; }
+  .amount-cell .edit-pencil {
+    font-size: 11px; color: var(--muted); opacity: 0; transition: opacity 0.15s; cursor: pointer;
+  }
+  td:hover .amount-cell .edit-pencil { opacity: 0.7; }
+  .amount-inline-input {
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.5px;
+    background: var(--surface2); border: 1px solid var(--gold);
+    border-radius: 5px; color: var(--gold); padding: 2px 8px;
+    outline: none; width: 90px;
+  }
+  .amount-inline-input::-webkit-inner-spin-button,
+  .amount-inline-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .reset-price-btn {
+    font-size: 10px; color: var(--muted); background: none; border: none;
+    cursor: pointer; padding: 0 4px; line-height: 1; transition: color 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .reset-price-btn:hover { color: var(--red); }
+
+  /* ── PRICING MANAGER ── */
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding: 28px 40px 40px; }
+  .pricing-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; position: relative; overflow: hidden;
+  }
+  .pricing-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); border-radius: 12px 12px 0 0; }
+  .pricing-client { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+  .pricing-input-row { display: flex; align-items: center; gap: 10px; }
+  .pricing-symbol { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--gold-dim); line-height: 1; }
+  .pricing-input {
+    font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--gold);
+    background: transparent; border: none; border-bottom: 2px solid var(--border);
+    outline: none; width: 100%; letter-spacing: 1px; line-height: 1; padding-bottom: 4px;
+    transition: border-color 0.15s;
+  }
+  .pricing-input:focus { border-color: var(--gold); }
+  .pricing-input::-webkit-inner-spin-button,
+  .pricing-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .pricing-hint { font-size: 11px; color: var(--muted); margin-top: 10px; }
+  .pricing-save-bar { padding: 0 40px 32px; display: flex; align-items: center; gap: 16px; }
+  .pricing-save-btn {
+    padding: 10px 28px; background: var(--gold); color: #000; border: none;
+    border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .pricing-save-btn:hover { opacity: 0.88; }
+  .pricing-saved-msg { font-size: 12px; color: var(--green); opacity: 0; transition: opacity 0.4s; }
+  .pricing-saved-msg.show { opacity: 1; }
+  .pricing-reset-btn {
+    padding: 10px 20px; background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 12px;
+    cursor: pointer; transition: all 0.15s; margin-left: auto;
+  }
+  .pricing-reset-btn:hover { color: var(--red); border-color: rgba(239,68,68,0.4); }
+
+  /* ── MISC ── */
+  .state-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 16px; color: var(--muted); }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes countup { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-in { animation: countup 0.6s cubic-bezier(0.22,1,0.36,1) both; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ─────────────────────────────────────────────
+   MOBILE RESPONSIVE
+───────────────────────────────────────────── */
+@media (max-width: 700px) {
+
+  /* Sidebar */
+  .sidebar {
+    width: 56px;
+  }
+
+  .sidebar-logo-text,
+  .nav-item-label,
+  .sidebar-section,
+  .nav-count,
+  .refresh-btn-label,
+  .last-updated {
+    display: none;
+  }
+
+  /* Global spacing */
+  .page-header,
+  .stats-row,
+  .table-section,
+  .hero,
+  .status-legend,
+  .pricing-grid,
+  .pricing-save-bar {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Header */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .client-name {
+    font-size: 32px;
+  }
+
+  /* Hero */
+  .hero {
+    padding-top: 32px;
+  }
+
+  .hero-earnings {
+    font-size: clamp(56px, 18vw, 90px);
+  }
+
+  .hero-breakdown {
+    gap: 16px;
+    justify-content: center;
+  }
+
+  .hero-divider {
+    display: none;
+  }
+
+  .hero-stat {
+    min-width: 90px;
+  }
+
+  .hero-stat-val {
+    font-size: 24px;
+  }
+
+  /* Stats Cards */
+  .stats-row {
+    gap: 12px;
+  }
+
+  .stat-card {
+    min-width: 100%;
+    padding: 18px;
+  }
+
+  .stat-value {
+    font-size: 30px;
+  }
+
+  .stat-card.earnings .stat-value {
+    font-size: 36px;
+  }
+
+  /* Editor cards */
+  .editor-earnings {
+    gap: 12px;
+  }
+
+  .editor-card {
+    width: 100%;
+    min-width: unset;
+    padding: 16px;
+  }
+
+  .editor-card-amt {
+    font-size: 30px;
+  }
+
+  /* Status legend */
+  .status-legend {
+    gap: 10px;
+  }
+
+  .legend-item {
+    font-size: 11px;
+  }
+
+  /* Pricing */
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .pricing-save-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .pricing-save-btn,
+  .pricing-reset-btn {
+    width: 100%;
+  }
+
+  .pricing-reset-btn {
+    margin-left: 0;
+  }
+
+  /* Tables */
+  .table-section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 700px;
+  }
+
+  th,
+  td {
+    padding: 10px;
+    white-space: nowrap;
+  }
+
+  /* Amount editor */
+  .amount-inline-input {
+    width: 70px;
+  }
+
+  /* Summary cards */
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* Pricing inputs */
+  .pricing-input {
+    font-size: 28px;
+  }
+
+  /* Navigation buttons */
+  .editor-filter {
+    width: 100%;
+  }
+
+  .editor-btn {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+
+  .client-name {
+    font-size: 28px;
+  }
+
+  .hero-earnings {
+    font-size: clamp(48px, 16vw, 72px);
+  }
+
+  .hero-stat-val {
+    font-size: 20px;
+  }
+
+  .stat-card.earnings .stat-value {
+    font-size: 32px;
+  }
+
+  .editor-card-amt {
+    font-size: 26px;
+  }
+
+  .pricing-input {
+    font-size: 24px;
+  }
+
+  .page-header,
+  .stats-row,
+  .table-section,
+  .hero,
+  .status-legend,
+  .pricing-grid,
+  .pricing-save-bar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">
+        <div class="suite">V<span style="color:var(--text2)">E</span></div>
+        <div class="sub">Earnings Tracker</div>
+      </div>
+      <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#9776;</button>
+    </div>
+
+    <div class="sidebar-section">Overview</div>
+    <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
+      <div class="dot" style="background:var(--gold)"></div>
+      <span class="nav-item-label">Dashboard</span>
+    </div>
+    <div class="nav-item" id="nav-pricing" onclick="switchTab('pricing')">
+      <div class="dot" style="background:var(--gold-dim)"></div>
+      <span class="nav-item-label">Pricing Manager</span>
+    </div>
+
+    <div class="sidebar-section">Clients</div>
+    <div id="client-nav"></div>
+
+    <div class="sidebar-bottom">
+      <button class="refresh-btn" onclick="loadData()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span class="refresh-btn-label">Refresh data</span>
+      </button>
+      <div class="last-updated" id="last-updated">–</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main" id="main-content">
+    <div id="page-home"></div>
+    <div id="page-client"  style="display:none"></div>
+    <div id="page-summary" style="display:none"></div>
+    <div id="page-pricing" style="display:none"></div>
+  </main>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// RATES — loaded from localStorage; hardcoded defaults are fallbacks ONLY
+// ═══════════════════════════════════════════════════════════════════════════
+const RATE_DEFAULTS = {
+  'LHF': 500, 'Boney': 500, 'L&S': 500, 'Jeya': 500,
+  'AM Market': 500, 'BullionFX': 400, 'Goreng Story': 500
+};
+
+let clientRates = {};
+
+function loadRates() {
+  try {
+    const saved = localStorage.getItem('clientRates');
+    clientRates = saved ? JSON.parse(saved) : { ...RATE_DEFAULTS };
+    // Fill in any missing clients with defaults
+    for (const [k, v] of Object.entries(RATE_DEFAULTS)) {
+      if (clientRates[k] === undefined) clientRates[k] = v;
+    }
+  } catch (e) {
+    clientRates = { ...RATE_DEFAULTS };
+  }
+}
+
+function saveRates() {
+  localStorage.setItem('clientRates', JSON.stringify(clientRates));
+}
+
+function getRate(clientName) {
+  return clientRates[clientName] !== undefined ? clientRates[clientName] : 500;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PER-PROJECT PRICE OVERRIDES
+// Key format: "ClientName||ProjectName"
+// ═══════════════════════════════════════════════════════════════════════════
+let projectOverrides = {};
+
+function loadProjectOverrides() {
+  try {
+    const saved = localStorage.getItem('projectOverrides');
+    projectOverrides = saved ? JSON.parse(saved) : {};
+  } catch(e) { projectOverrides = {}; }
+}
+
+function saveProjectOverrides() {
+  localStorage.setItem('projectOverrides', JSON.stringify(projectOverrides));
+}
+
+function getProjectKey(clientName, projectName) {
+  return clientName + '||' + projectName;
+}
+
+function getProjectRate(clientName, projectName) {
+  const key = getProjectKey(clientName, projectName);
+  return projectOverrides[key] !== undefined ? projectOverrides[key] : getRate(clientName);
+}
+
+function setProjectRate(clientName, projectName, value) {
+  const key = getProjectKey(clientName, projectName);
+  projectOverrides[key] = value;
+  saveProjectOverrides();
+}
+
+function resetProjectRate(clientName, projectName) {
+  const key = getProjectKey(clientName, projectName);
+  delete projectOverrides[key];
+  saveProjectOverrides();
+}
+
+function hasProjectOverride(clientName, projectName) {
+  return projectOverrides[getProjectKey(clientName, projectName)] !== undefined;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIDEBAR COLLAPSE STATE
+// ═══════════════════════════════════════════════════════════════════════════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const collapsed = sb.classList.toggle('collapsed');
+  localStorage.setItem('sidebarCollapsed', collapsed ? 'true' : 'false');
+}
+
+function applySidebarState() {
+  const saved = localStorage.getItem('sidebarCollapsed');
+  if (saved === 'true') {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FULL NAME MAPPINGS
+// ═══════════════════════════════════════════════════════════════════════════
+const FULL_NAMES = { 'neil': 'Neil Pangilinan', 'aus': 'Austin Garcia' };
+
+function getFullName(shortName) {
+  const n = (shortName || '').toLowerCase().trim();
+  return FULL_NAMES[n] || shortName || 'Unknown';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLIENT DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════════════
+const CLIENTS = [
+  { name:"LHF",          sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"0",          cols:{date:0,editor:1,project:2,frame:3,revised:5,status:6} },
+  { name:"Boney",        sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"833188498",  cols:{date:0,editor:1,project:2,frame:4,revised:6,status:7} },
+  { name:"L&S",          sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"317078901",  cols:{date:0,editor:1,project:2,frame:3,revised:5,status:6} },
+  { name:"Jeya",         sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"1909088031", cols:{date:0,editor:1,project:2,frame:4,revised:6,status:7} },
+  { name:"AM Market",    sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"1001571984", cols:{date:0,editor:1,project:2,frame:4,revised:6,status:7} },
+  { name:"BullionFX",    sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"1467316596", cols:{date:0,editor:1,project:2,frame:4,revised:6,status:7} },
+  { name:"Goreng Story", sheet:"1xU1qVfUaCwj5cVlvdY-SKnU4Cw2MqgV2mDA-OlgQgX0", gid:"210567726",  cols:{date:0,editor:1,project:2,frame:4,revised:6,status:7} }
+];
+
+let allData    = {};
+let activeTab  = 'home';
+let activeEditor = 'all';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS SYSTEMS — TWO SEPARATE FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * WORKFLOW STATUS — derived exclusively from frame/revised columns.
+ * Returns: 'exported' | 'checking' | 'pending' | null (empty row)
+ * Never touches the payment/status column.
+ */
+function getWorkflowStatus(row) {
+  const hasRevised = !!(row.revised && row.revised.trim());
+  const hasFrame   = !!(row.frame   && row.frame.trim());
+  const hasProject = !!(row.project && row.project.trim());
+
+  if (!hasProject) return null;         // empty row — ignore entirely
+  if (hasRevised)  return 'exported';   // revised exists → exported (regardless of frame)
+  if (hasFrame)    return 'checking';   // frame only → for checking
+  return 'pending';                     // neither → pending
+}
+
+/**
+ * PAYMENT STATUS — derived exclusively from the spreadsheet status column.
+ * Returns: 'paid' | 'unpaid' | null (no payment info)
+ * Never touches frame or revised.
+ */
+function getPaymentStatus(row) {
+  const st = (row.status || '').toLowerCase().trim();
+  if (!st) return null;
+  if (st.includes('paid') && !st.includes('not') && !st.includes('un')) return 'paid';
+  if (st.includes('not paid') || st.includes('unpaid')) return 'unpaid';
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CSV HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function splitCSVLine(line) {
+  const result = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseCSV(text, clientDef) {
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const { cols } = clientDef;
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const c       = splitCSVLine(lines[i]);
+    const date    = (c[cols.date]    || '').trim();
+    const editor  = (c[cols.editor]  || '').trim();
+    const project = (c[cols.project] || '').trim();
+    const frame   = (c[cols.frame]   || '').trim();
+    const revised = (c[cols.revised] || '').trim();
+    const status  = (c[cols.status]  || '').trim();
+
+    // Exclude Val editors entirely — before any counting
+    if (editor.toLowerCase().includes('val')) continue;
+
+    // Skip completely empty rows
+    if (!date && !project) continue;
+
+    rows.push({ date, editor, project, frame, revised, status });
+  }
+  return rows;
+}
+
+async function fetchSheet(sheetId, gid) {
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not fetch sheet gid=${gid}`);
+  return res.text();
+}
+
+async function loadData() {
+  document.getElementById('last-updated').textContent = 'Refreshing…';
+  try {
+    allData = {};
+    for (const client of CLIENTS) {
+      const text = await fetchSheet(client.sheet, client.gid);
+      const rows = parseCSV(text, client);
+      if (rows.length) allData[client.name] = rows;
+    }
+    renderAll();
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    console.error('loadData error:', e);
+    document.getElementById('last-updated').textContent = 'Refresh failed';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTERING & AGGREGATION
+// ═══════════════════════════════════════════════════════════════════════════
+function filterByEditor(rows) {
+  if (!rows) return [];
+  if (activeEditor === 'all') return rows;
+  return rows.filter(r => r.editor.toLowerCase() === activeEditor.toLowerCase());
+}
+
+function computeClientStats(rows, clientName) {
+  const f    = filterByEditor(rows);
+  const tally = { paid:0, unpaid:0, exported:0, checking:0, pending:0 };
+  let earnings = 0, pendingAmount = 0;
+
+  for (const r of f) {
+    const ws = getWorkflowStatus(r);
+    const ps = getPaymentStatus(r);
+    const rate = getProjectRate(clientName, r.project);
+    if (ws) tally[ws]++;
+    if (ps) tally[ps]++;
+    if (ps === 'paid')   earnings      += rate;
+    if (ps === 'unpaid') pendingAmount += rate;
+  }
+
+  return {
+    total:         f.filter(r => getWorkflowStatus(r) !== null).length,
+    paid:          tally.paid,
+    unpaid:        tally.unpaid,
+    exported:      tally.exported,
+    checking:      tally.checking,
+    pending:       tally.pending,
+    earnings,
+    pendingAmount,
+  };
+}
+
+function computeGlobal() {
+  const tally = { paid:0, unpaid:0, exported:0, checking:0, pending:0 };
+  const editorMap = {};
+  let total = 0;
+
+  for (const [clientName, rows] of Object.entries(allData)) {
+    for (const r of filterByEditor(rows)) {
+      const ws   = getWorkflowStatus(r);
+      const ps   = getPaymentStatus(r);
+      const rate = getProjectRate(clientName, r.project);
+      if (!ws) continue;
+      total++;
+      tally[ws]++;
+      if (ps) tally[ps]++;
+      const ed = r.editor || 'Unknown';
+      if (!editorMap[ed]) editorMap[ed] = { paid:0, unpaid:0, exported:0, checking:0, pending:0, earnings:0 };
+      editorMap[ed][ws]++;
+      if (ps) editorMap[ed][ps]++;
+      if (ps === 'paid') editorMap[ed].earnings += rate;
+    }
+  }
+
+  return { total, ...tally, editorMap };
+}
+
+function getGlobalEarningsBreakdown() {
+  let paidSum = 0, unpaidSum = 0;
+  for (const [clientName, rows] of Object.entries(allData)) {
+    for (const r of filterByEditor(rows)) {
+      const ps   = getPaymentStatus(r);
+      const rate = getProjectRate(clientName, r.project);
+      if (ps === 'paid')   paidSum   += rate;
+      if (ps === 'unpaid') unpaidSum += rate;
+    }
+  }
+  return { paidSum, unpaidSum };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function badgeHTML(status) {
+  const map = {
+    paid:     ['badge-paid',     '✓ Paid'],
+    unpaid:   ['badge-unpaid',   '✕ Not Paid'],
+    exported: ['badge-exported', '✓ Exported'],
+    checking: ['badge-checking', '⏳ For Checking'],
+    pending:  ['badge-pending',  '⏳ Pending'],
+  };
+  const [cls, label] = map[status] || ['badge-pending', status];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function fmt(n) { return '₱' + n.toLocaleString(); }
+
+function getEditors() {
+  const s = new Set();
+  for (const rows of Object.values(allData)) {
+    rows.forEach(r => {
+      if (r.editor && r.editor.trim() && !r.editor.toLowerCase().includes('val'))
+        s.add(r.editor);
+    });
+  }
+  return [...s].sort();
+}
+
+function editorFilterHTML() {
+  const editors = getEditors();
+  const allActive = activeEditor === 'all' ? 'active' : '';
+  const btns = editors.map(e => {
+    const active = activeEditor === e ? 'active' : '';
+    return `<button class="editor-btn ${active}" onclick="setEditor('${e}')">${e}</button>`;
+  }).join('');
+  return `<div class="editor-filter">
+    <span class="filter-label">Editor:</span>
+    <button class="editor-btn ${allActive}" onclick="setEditor('all')">All</button>
+    ${btns}
+  </div>`;
+}
+
+function editorTagHTML(editor) {
+  const cls = editor.toLowerCase() === 'aus'  ? 'editor-aus'
+            : editor.toLowerCase() === 'neil' ? 'editor-neil' : '';
+  const fullName = getFullName(editor);
+  return `<span class="editor-tag ${cls}" title="${fullName}">${editor || '–'}</span>`;
+}
+
+/**
+ * VIDEO COLUMN — shows "Exported" if revised has any value, dash otherwise.
+ * No links, no URL validation, no href.
+ */
+function videoColHTML(row) {
+  const hasRevised = !!(row.revised && row.revised.trim());
+  if (hasRevised) return `<span class="badge badge-exported">Exported</span>`;
+  return `<span style="color:var(--muted)">—</span>`;
+}
+
+function amountCellHTML(paymentStatus, clientName, projectName) {
+  if (paymentStatus !== 'paid' && paymentStatus !== 'unpaid') {
+    return `<span style="color:var(--muted)">–</span>`;
+  }
+  const rate       = getProjectRate(clientName, projectName);
+  const overridden = hasProjectOverride(clientName, projectName);
+  const cls        = paymentStatus === 'paid' ? 'earned' : 'owed';
+  const safeClient  = encodeURIComponent(clientName);
+  const safeProject = encodeURIComponent(projectName);
+  const resetBtn   = overridden
+    ? `<button class="reset-price-btn" title="Reset to client default (${fmt(getRate(clientName))})"
+         onclick="event.stopPropagation();doResetProjectRate('${safeClient}','${safeProject}')">↺</button>`
+    : '';
+  return `<span class="amount-cell" data-overridden="${overridden}"
+      data-client="${safeClient}" data-project="${safeProject}"
+      ondblclick="startInlineEdit(this)"
+      title="Double-click to set a custom price for this project">
+    <span class="amount ${cls}">${fmt(rate)}</span>
+    <span class="edit-pencil">✎</span>
+    ${resetBtn}
+  </span>`;
+}
+
+function startInlineEdit(cell) {
+  if (cell.querySelector('.amount-inline-input')) return;
+  const clientName  = decodeURIComponent(cell.getAttribute('data-client'));
+  const projectName = decodeURIComponent(cell.getAttribute('data-project'));
+  const current     = getProjectRate(clientName, projectName);
+  const amountSpan  = cell.querySelector('.amount');
+  amountSpan.style.display = 'none';
+  const pencil = cell.querySelector('.edit-pencil');
+  if (pencil) pencil.style.display = 'none';
+  const input = document.createElement('input');
+  input.type  = 'number';
+  input.min   = '0';
+  input.value = current;
+  input.className = 'amount-inline-input';
+  cell.insertBefore(input, amountSpan);
+  input.focus();
+  input.select();
+  let committed = false;
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const val = parseInt(input.value, 10);
+    if (!isNaN(val) && val >= 0) setProjectRate(clientName, projectName, val);
+    renderAll();
+  }
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { committed = true; renderAll(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function doResetProjectRate(safeClient, safeProject) {
+  resetProjectRate(decodeURIComponent(safeClient), decodeURIComponent(safeProject));
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER PIPELINE
+// ═══════════════════════════════════════════════════════════════════════════
+function setEditor(name) { activeEditor = name; renderAll(); }
+
+function switchTab(tab) {
+  activeTab = tab;
+  renderAll();
+  window.scrollTo(0, 0);
+}
+
+function renderAll() {
+  renderSidebar();
+  if      (activeTab === 'home')             renderHome();
+  else if (activeTab === 'pricing')          renderPricing();
+  else if (activeTab === 'summary-pending')  renderSummaryPage('pending');
+  else if (activeTab === 'summary-checking') renderSummaryPage('checking');
+  else if (activeTab === 'summary-unpaid')   renderSummaryPage('unpaid');
+  else                                       renderClient(activeTab);
+}
+
+function renderSidebar() {
+  const nav    = document.getElementById('client-nav');
+  const colors = ['#60a5fa','#f472b6','#34d399','#a78bfa','#fb923c','#e879f9','#f9a8d4'];
+
+  document.getElementById('nav-home').className    = activeTab === 'home'    ? 'nav-item active' : 'nav-item';
+  document.getElementById('nav-pricing').className = activeTab === 'pricing' ? 'nav-item active' : 'nav-item';
+
+  nav.innerHTML = Object.keys(allData).map((c, i) => {
+    const count  = filterByEditor(allData[c]).filter(r => getWorkflowStatus(r) !== null).length;
+    const active = activeTab === c ? 'active' : '';
+    return `<div class="nav-item ${active}" onclick="switchTab('${c}')">
+      <div class="dot" style="background:${colors[i % colors.length]}"></div>
+      <span class="nav-item-label">${c}</span>
+      <span class="nav-count">${count}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── HOME / DASHBOARD ──────────────────────────────────────────────────────
+function renderHome() {
+  document.getElementById('page-client').style.display  = 'none';
+  document.getElementById('page-summary').style.display = 'none';
+  document.getElementById('page-pricing').style.display = 'none';
+  const el = document.getElementById('page-home');
+  el.style.display = '';
+
+  const g         = computeGlobal();
+  const financial = getGlobalEarningsBreakdown();
+  const editors   = getEditors();
+
+  const editorCards = editors
+    .filter(ed => activeEditor === 'all' || activeEditor === ed)
+    .map(ed => {
+      const info       = g.editorMap[ed] || {};
+      const full       = getFullName(ed);
+      const inProgress = (info.exported||0) + (info.checking||0) + (info.pending||0);
+      return `<div class="editor-card">
+        <div class="editor-card-name">${ed}</div>
+        <div class="editor-card-fullname">${full}</div>
+        <div class="editor-card-amt"><span class="peso">₱</span>${(info.earnings||0).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${info.paid||0} paid · ${info.unpaid||0} unpaid · ${inProgress} in workflow</div>
+      </div>`;
+    }).join('');
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="client-name">ALL <span>CLIENTS</span></div>
+      </div>
+      <div>${editorFilterHTML()}</div>
+    </div>
+
+    <div class="hero animate-in">
+      <div class="hero-eyebrow">Total Earnings (Paid Videos)</div>
+      <div class="hero-earnings">
+        <span class="hero-currency">₱</span><span id="count-num">0</span>
+      </div>
+      <div class="hero-sub">${g.paid} video${g.paid !== 1 ? 's' : ''} paid total</div>
+
+      <div class="hero-breakdown">
+        <div class="hero-stat">
+          <div class="hero-stat-val g" id="count-paid">0</div>
+          <div class="hero-stat-label">Paid</div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat clickable" onclick="switchTab('summary-unpaid')">
+          <div class="hero-stat-val r" id="count-unpaid">0</div>
+          <div class="hero-stat-label" style="text-decoration:underline;text-underline-offset:3px">Not Paid ↗</div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat">
+          <div class="hero-stat-val" style="color:var(--teal)">${g.exported}</div>
+          <div class="hero-stat-label">Exported</div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat clickable" onclick="switchTab('summary-checking')">
+          <div class="hero-stat-val" style="color:var(--amber)">${g.checking}</div>
+          <div class="hero-stat-label" style="text-decoration:underline;text-underline-offset:3px">For Checking ↗</div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat clickable" onclick="switchTab('summary-pending')">
+          <div class="hero-stat-val p">${g.pending}</div>
+          <div class="hero-stat-label" style="text-decoration:underline;text-underline-offset:3px">Pending ↗</div>
+        </div>
+        <div class="hero-divider"></div>
+        <div class="hero-stat">
+          <div class="hero-stat-val">${g.total}</div>
+          <div class="hero-stat-label">Total</div>
+        </div>
+      </div>
+
+      ${editorCards ? `<div class="editor-earnings" style="margin-top:36px">${editorCards}</div>` : ''}
+    </div>
+
+    <div class="status-legend">
+      <span class="legend-label">Status key:</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#22c55e"></span>Paid</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Not Paid</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#2dd4bf"></span>Exported — revised file exists</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span>For Checking — frame active, no revised</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>Pending — not started</span>
+    </div>
+  `;
+
+  countUp('count-num',    financial.paidSum, 1200);
+  countUp('count-paid',   g.paid,            900);
+  countUp('count-unpaid', g.unpaid,          900);
+}
+
+// ── CLIENT PAGE ───────────────────────────────────────────────────────────
+function renderClient(clientName) {
+  document.getElementById('page-home').style.display    = 'none';
+  document.getElementById('page-summary').style.display = 'none';
+  document.getElementById('page-pricing').style.display = 'none';
+  const el = document.getElementById('page-client');
+  el.style.display = '';
+
+  const rows     = allData[clientName] || [];
+  const filtered = filterByEditor(rows).filter(r => getWorkflowStatus(r) !== null);
+  const s        = computeClientStats(rows, clientName);
+  const rate     = getRate(clientName);
+
+  const tableRows = filtered.map(r => {
+    const ws = getWorkflowStatus(r);
+    const ps = getPaymentStatus(r);
+    return `<tr>
+      <td><span style="color:var(--muted);font-size:12px">${r.date || '–'}</span></td>
+      <td class="project-name">${r.project || '–'}</td>
+      <td>${editorTagHTML(r.editor)}</td>
+      <td>${badgeHTML(ws)}${ps ? ' ' + badgeHTML(ps) : ''}</td>
+      <td>${videoColHTML(r)}</td>
+      <td>${amountCellHTML(ps, clientName, r.project)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Client Log Overview</div>
+        <div class="client-name"><span>${clientName}</span></div>
+      </div>
+      <div>${editorFilterHTML()}</div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card earnings">
+        <div class="stat-label">Earnings</div>
+        <div class="stat-value">${fmt(s.earnings)}</div>
+        <div class="stat-sub">${s.paid} paid · ${fmt(getRate(clientName))}/ea default</div>
+      </div>
+      <div class="stat-card unpaid clickable" onclick="switchTab('summary-unpaid')">
+        <div class="stat-label">Pending Payment</div>
+        <div class="stat-value">${fmt(s.pendingAmount)}</div>
+        <div class="stat-sub">${s.unpaid} awaiting payout ↗</div>
+      </div>
+      <div class="stat-card exported-card">
+        <div class="stat-label">Exported</div>
+        <div class="stat-value">${s.exported}</div>
+        <div class="stat-sub">Revised file active</div>
+      </div>
+      <div class="stat-card checking-card clickable" onclick="switchTab('summary-checking')">
+        <div class="stat-label">For Checking</div>
+        <div class="stat-value">${s.checking}</div>
+        <div class="stat-sub">View summary ↗</div>
+      </div>
+      <div class="stat-card pending-card clickable" onclick="switchTab('summary-pending')">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value">${s.pending}</div>
+        <div class="stat-sub">View breakdown ↗</div>
+      </div>
+    </div>
+
+    <div class="table-section">
+      <div class="table-header">
+        <span class="table-title">Project Log</span>
+        <span class="table-count">${filtered.length} entries</span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Project</th><th>Editor</th><th>Status</th><th>Video</th><th>Amount</th></tr>
+        </thead>
+        <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No projects found.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── SUMMARY PAGES ─────────────────────────────────────────────────────────
+function renderSummaryPage(type) {
+  document.getElementById('page-home').style.display    = 'none';
+  document.getElementById('page-client').style.display  = 'none';
+  document.getElementById('page-pricing').style.display = 'none';
+  const el = document.getElementById('page-summary');
+  el.style.display = '';
+
+  const titleMap = { pending:'Pending Workspace', checking:'For Checking Summary', unpaid:'Unpaid Summary' };
+
+  // workflow types use getWorkflowStatus; 'unpaid' uses getPaymentStatus
+  const isPaymentType = (type === 'unpaid');
+  const matches = [];
+  let aggregateOwedSum = 0;
+
+  for (const [clientName, rows] of Object.entries(allData)) {
+    for (const r of filterByEditor(rows)) {
+      const match = isPaymentType
+        ? getPaymentStatus(r) === 'unpaid'
+        : getWorkflowStatus(r) === type;
+      if (match) {
+        matches.push({ client: clientName, r });
+        if (isPaymentType) aggregateOwedSum += getProjectRate(clientName, r.project);
+      }
+    }
+  }
+
+  const unpaidTotalMarkup = isPaymentType
+    ? `<div style="margin:0 40px 0;padding:16px 20px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;color:var(--text2)">${matches.length} unpaid video${matches.length !== 1 ? 's' : ''} · Global Accumulation Owed</span>
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--red)">${fmt(aggregateOwedSum)}</span>
+       </div>`
+    : '';
+
+  const tableRows = matches.map(({ client, r }) => {
+    const rate = getProjectRate(client, r.project);
+    const ws   = getWorkflowStatus(r);
+    const ps   = getPaymentStatus(r);
+    return `<tr>
+      <td><span style="font-weight:600;color:var(--gold)">${client}</span></td>
+      <td><span style="color:var(--muted);font-size:12px">${r.date || '–'}</span></td>
+      <td class="project-name">${r.project || '–'}</td>
+      <td>${editorTagHTML(r.editor)}</td>
+      <td>${badgeHTML(type)}</td>
+      <td>${videoColHTML(r)}</td>
+      ${isPaymentType ? `<td>${amountCellHTML(ps, client, r.project)}</td>` : ''}
+    </tr>`;
+  }).join('');
+
+  const extraCol = isPaymentType ? '<th>Amount</th>' : '';
+  const colSpan  = isPaymentType ? 7 : 6;
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Global Aggregate</div>
+        <div class="client-name"><span>${titleMap[type]}</span></div>
+      </div>
+      <div>${editorFilterHTML()}</div>
+    </div>
+
+    <div style="padding-top:28px">${unpaidTotalMarkup}</div>
+
+    <div class="table-section" style="padding-top:20px">
+      <div class="table-header">
+        <span class="table-title">Matched Items</span>
+        <span class="table-count">${matches.length} items</span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Client</th><th>Date</th><th>Project</th><th>Editor</th><th>Status</th><th>Video</th>${extraCol}</tr>
+        </thead>
+        <tbody>
+          ${tableRows || `<tr><td colspan="${colSpan}" style="text-align:center;color:var(--muted);padding:48px">No items found for this status.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── PRICING MANAGER ───────────────────────────────────────────────────────
+function renderPricing() {
+  document.getElementById('page-home').style.display    = 'none';
+  document.getElementById('page-client').style.display  = 'none';
+  document.getElementById('page-summary').style.display = 'none';
+  const el = document.getElementById('page-pricing');
+  el.style.display = '';
+
+  const cards = Object.keys(RATE_DEFAULTS).map(clientName => {
+    const current = getRate(clientName);
+    return `<div class="pricing-card">
+      <div class="pricing-client">${clientName}</div>
+      <div class="pricing-input-row">
+        <span class="pricing-symbol">₱</span>
+        <input
+          class="pricing-input"
+          type="number"
+          min="0"
+          id="rate-${clientName.replace(/[^a-z0-9]/gi,'_')}"
+          value="${current}"
+          data-client="${clientName}"
+          onchange="onRateChange(this)"
+        />
+      </div>
+      <div class="pricing-hint">per video · editable</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Settings</div>
+        <div class="client-name">PRICING <span>MANAGER</span></div>
+      </div>
+    </div>
+
+    <div class="pricing-grid">${cards}</div>
+
+    <div class="pricing-save-bar">
+      <button class="pricing-save-btn" onclick="savePricingFromUI()">Save Rates</button>
+      <span class="pricing-saved-msg" id="pricing-saved-msg">✓ Rates saved</span>
+      <button class="pricing-reset-btn" onclick="resetRates()">Reset to Defaults</button>
+    </div>
+
+    <div style="padding: 0 40px 40px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;max-width:560px">
+        <div style="font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">How rates work</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.7">
+          Rates are saved to your browser and persist across refreshes. Every earnings total,
+          dashboard card, and client page uses the rate stored here. Changing a rate and saving
+          instantly recalculates everything on reload.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function onRateChange(input) {
+  // Live update in-memory so totals reflect immediately if user navigates away
+  const client = input.getAttribute('data-client');
+  const val    = parseInt(input.value, 10);
+  if (!isNaN(val) && val >= 0) clientRates[client] = val;
+}
+
+function savePricingFromUI() {
+  // Read all inputs and save
+  for (const clientName of Object.keys(RATE_DEFAULTS)) {
+    const id  = 'rate-' + clientName.replace(/[^a-z0-9]/gi, '_');
+    const inp = document.getElementById(id);
+    if (inp) {
+      const val = parseInt(inp.value, 10);
+      if (!isNaN(val) && val >= 0) clientRates[clientName] = val;
+    }
+  }
+  saveRates();
+
+  // Flash confirmation
+  const msg = document.getElementById('pricing-saved-msg');
+  if (msg) {
+    msg.classList.add('show');
+    setTimeout(() => msg.classList.remove('show'), 2500);
+  }
+
+  // Re-render everything so all counts/earnings update with new rates
+  renderAll();
+}
+
+function resetRates() {
+  if (!confirm('Reset all rates to their original defaults?')) return;
+  clientRates = { ...RATE_DEFAULTS };
+  saveRates();
+  renderPricing();
+  renderSidebar();
+}
+
+// ── COUNTER ANIMATION ─────────────────────────────────────────────────────
+function countUp(id, target, duration) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = performance.now();
+  function step(now) {
+    const p    = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(ease * target).toLocaleString();
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+loadRates();
+loadProjectOverrides();
+applySidebarState();
+loadData();
+</script>
+</body>
+</html>
